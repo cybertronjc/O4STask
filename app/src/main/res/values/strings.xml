@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">O4STask</string>
+
+    <string name="search_place">Search a place, city or country</string>
+</resources>
