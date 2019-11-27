@@ -33,7 +33,11 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name=".helper.GoldenReceiver">
+        <receiver android:name="com.jagdishchoudhary.o4stask.helper.GoldenReceiver">
+            <intent-filter>
+                <action android:name="com.jagdishchoudhary.o4stask.action.LOCAL_NOTIFICATION" />
+                <category android:name="com.category.LocalNotification" />
+            </intent-filter>
         </receiver>
     </application>
 

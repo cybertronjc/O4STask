@@ -17,6 +17,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentSender;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -99,7 +100,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private static final int M_MAX_ENTRIES = 10;
 
-    private static final int AUTOCOMPLETE_REQUEST_CODE = 1;
+    private static final int AUTOCOMPLETE_REQUEST_CODE = 1001;
 
     private static final float DEFAULT_ZOOM = 16f;
 
@@ -126,6 +127,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     PlaceDatabase placeDatabase ;
     PlaceEntity placeEntity;
+    boolean notificationSet = false;
+    SharedPreferences sp;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,7 +141,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         //searchBar = findViewById(R.id.searchBar);
 
         if (!Places.isInitialized()) {
-            String gApiKey = "AIzaSyDm9GYQjGIHrnTFMuzcITDWzuqQdN--EdI";
+            String gApiKey = "AIzaSyDDSzJss37KUPKKicoBdCD0SguiazThfZk";
             Places.initialize(ctx, gApiKey);
         }
         placesClient = Places.createClient(ctx);
@@ -148,6 +151,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         searchText = findViewById(R.id.search_text);
 
         gpsImg = findViewById(R.id.gps_button);
+
+        sp = getSharedPreferences("default", Context.MODE_PRIVATE);
 
         if (isPlayServicesOk()){
             getLocationPermission();
@@ -309,6 +314,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
 
+
     }
 
     private void increaseDate(LatLng latLng){
@@ -336,12 +342,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         calculateTimeAndUpdateUi(latLng, dt);
     }
 
-//autocomplete places api
+    //autocomplete places api
     private void autoComplete(){
         // Start the autocomplete intent.
-        List<Place.Field> fields = Arrays.asList(Place.Field.ID, Place.Field.NAME);
+        List<Place.Field> fields = Arrays.asList(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG, Place.Field.ADDRESS);
         Intent intent = new Autocomplete.IntentBuilder(
-                AutocompleteActivityMode.FULLSCREEN, fields).setCountry("IN")
+                AutocompleteActivityMode.OVERLAY, fields).setCountry("IN")
                 .build(this);
         startActivityForResult(intent, AUTOCOMPLETE_REQUEST_CODE);
 
@@ -403,7 +409,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                             // COMMENTED OUT UNTIL WE DEFINE THE METHOD
                             // Populate the ListView
-                             fillPlacesList(mLikelyPlaceNames, mLikelyPlaceAddresses, mLikelyPlaceAttributions, mLikelyPlaceLatLngs);
+                            fillPlacesList(mLikelyPlaceNames, mLikelyPlaceAddresses, mLikelyPlaceAttributions, mLikelyPlaceLatLngs);
                         } else {
                             Exception exception = task.getException();
                             if (exception instanceof ApiException) {
@@ -460,28 +466,28 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void getDeviceLocation(){
 
-            try {
-                if (mLocationPermissionsGranted){
-                    fusedLocationProviderClient.getLastLocation().addOnCompleteListener(new OnCompleteListener<Location>() {
-                        @Override
-                        public void onComplete(@NonNull Task<Location> task) {
-                            if (task.isSuccessful()){
-                                if (task.getResult() != null) {
-                                    Log.d(TAG, "Location found " + task.getResult().toString());
-                                    currentLatLng = new LatLng(task.getResult().getLatitude(), task.getResult().getLongitude());
-                                    moveCamera(new LatLng(task.getResult().getLatitude(), task.getResult().getLongitude()), DEFAULT_ZOOM, "My location");
-                                    placeEntity = new PlaceEntity(0, "MyLocation", "None", task.getResult().getLatitude(), task.getResult().getLongitude());
-                                }
+        try {
+            if (mLocationPermissionsGranted){
+                fusedLocationProviderClient.getLastLocation().addOnCompleteListener(new OnCompleteListener<Location>() {
+                    @Override
+                    public void onComplete(@NonNull Task<Location> task) {
+                        if (task.isSuccessful()){
+                            if (task.getResult() != null) {
+                                Log.d(TAG, "Location found " + task.getResult().toString());
+                                currentLatLng = new LatLng(task.getResult().getLatitude(), task.getResult().getLongitude());
+                                moveCamera(new LatLng(task.getResult().getLatitude(), task.getResult().getLongitude()), DEFAULT_ZOOM, "My location");
+                                placeEntity = new PlaceEntity(0, "MyLocation", "None", task.getResult().getLatitude(), task.getResult().getLongitude());
                             }
-
                         }
-                    });
 
-                }
+                    }
+                });
+
             }
-            catch (SecurityException e){
-                Log.d("TAG", e.toString());
-            }
+        }
+        catch (SecurityException e){
+            Log.d("TAG", e.toString());
+        }
     }
     //moving camera to latlng
     private void moveCamera(LatLng latLng, float zoom, String title){
@@ -511,21 +517,29 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     private void golderHourNotification(int hour, int min){
-        //Create alarm manager
-        AlarmManager alarmMgr0 = (AlarmManager)getSystemService(Context.ALARM_SERVICE);
+
+        if (!sp.contains("alarm")){
+            //Create alarm manager
+            AlarmManager alarmMgr0 = (AlarmManager)getSystemService(Context.ALARM_SERVICE);
 
 //Create pending intent & register it to your alarm notifier class
-        Intent intent0 = new Intent(this, GoldenReceiver.class);
-        PendingIntent pendingIntent0 = PendingIntent.getBroadcast(this, 0, intent0, 0);
+            Intent intent0 = new Intent(this, GoldenReceiver.class);
+            PendingIntent pendingIntent0 = PendingIntent.getBroadcast(this, 0, intent0, 0);
 
 //set timer you want alarm to work (here I have set it to 7.20pm)
-        Calendar timeOff9 = Calendar.getInstance();
-        timeOff9.set(Calendar.HOUR_OF_DAY, hour);
-        timeOff9.set(Calendar.MINUTE, min);
-        timeOff9.set(Calendar.SECOND, 0);
+            Calendar timeOff9 = Calendar.getInstance();
+            timeOff9.set(Calendar.HOUR_OF_DAY, hour);
+            timeOff9.set(Calendar.MINUTE, min);
+            timeOff9.set(Calendar.SECOND, 0);
+
+            Log.d(TAG, Long.toString(timeOff9.getTimeInMillis()));
 
 //set that timer as a RTC Wakeup to alarm manager object
-        alarmMgr0.setExact(AlarmManager.RTC, timeOff9.getTimeInMillis(), pendingIntent0);
+            alarmMgr0.setExact(AlarmManager.RTC, timeOff9.getTimeInMillis(), pendingIntent0);
+
+            sp.edit().putString("alarm", "true").commit();
+        }
+
     }
 
     //checking where GPS is enabled or not
@@ -575,51 +589,58 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void calculateTimeAndUpdateUi(final LatLng latLng, final Date date){
 
 
-            new Handler().postDelayed(new Runnable() {
-                @RequiresApi(api = Build.VERSION_CODES.O)
-                @Override
-                public void run() {
-                    //sun's rising time
-                    String sunRising = risingSettingAlgorithm.getRisingSettingTime(date, new LatLng(latLng.latitude, latLng.longitude), "Rising");
-
-                    //sun's setting time
-                    String sunSetting = risingSettingAlgorithm.getRisingSettingTime(date, new LatLng(latLng.latitude, latLng.longitude), "Setting");
+        new Handler().postDelayed(new Runnable() {
+            @RequiresApi(api = Build.VERSION_CODES.O)
+            @Override
+            public void run() {
+                //sun's rising time
+                String sunRising = risingSettingAlgorithm.getRisingSettingTime(date, new LatLng(latLng.latitude, latLng.longitude), "Rising");
 
 
-                    double[] moonTime = Moon.riseSet(date, Astro.getTimeZoneOffset(date), latLng.latitude, latLng.longitude);
-                    //Log.d("Moon", Double.toString(moonTime[0]) + "set" + Double.toString(moonTime[1]));
-                   // Log.d("Moon", moonTime);
-                   // Log.d("Offset", risingSettingAlgorithm.getLocalTimeAsString(new BigDecimal(moonTime[1])));
+                //sun's setting time
+                String sunSetting = risingSettingAlgorithm.getRisingSettingTime(date, new LatLng(latLng.latitude, latLng.longitude), "Setting");
 
-                    if ((sunRising != null) || (sunSetting != null)) {
+                double[] moonTime = Moon.riseSet(date, Astro.getTimeZoneOffset(date), latLng.latitude, latLng.longitude);
+                //Log.d("Moon", Double.toString(moonTime[0]) + "set" + Double.toString(moonTime[1]));
+                // Log.d("Moon", moonTime);
+                // Log.d("Offset", risingSettingAlgorithm.getLocalTimeAsString(new BigDecimal(moonTime[1])));
 
-                        progressBar.setVisibility(View.GONE);
-                        sunLayout.setVisibility(View.VISIBLE);
-                        moonLayout.setVisibility(View.VISIBLE);
+                if ((sunRising != null) || (sunSetting != null)) {
 
-                        sunUp.setText(convertClock(sunRising));
-                        sunDown.setText(convertClock(sunSetting));
-                        moonUp.setText(convertClock(risingSettingAlgorithm.getLocalTimeAsString(new BigDecimal(moonTime[0]))));
-                        moonDown.setText(convertClock(risingSettingAlgorithm.getLocalTimeAsString(new BigDecimal(moonTime[1]))));
+                    progressBar.setVisibility(View.GONE);
+                    sunLayout.setVisibility(View.VISIBLE);
+                    moonLayout.setVisibility(View.VISIBLE);
 
+                    sunUp.setText(convertClock(sunRising));
+                    sunDown.setText(convertClock(sunSetting));
+                    moonUp.setText(convertClock(risingSettingAlgorithm.getLocalTimeAsString(new BigDecimal(moonTime[0]))));
+                    moonDown.setText(convertClock(risingSettingAlgorithm.getLocalTimeAsString(new BigDecimal(moonTime[1]))));
+
+                    if (!notificationSet){
+                        notificationSet = true;
                         //time for golden hour
-                        golderHourNotification(Integer.parseInt(sunSetting.substring(0,2)) - 1, Integer.parseInt(sunSetting.substring(3)));
+                        //golderHourNotification(Integer.parseInt(sunSetting.substring(0,2))-1, Integer.parseInt(sunSetting.substring(3)));
+                        //time for golden hour
+                        golderHourNotification(Integer.parseInt("00:04".substring(0,2)), Integer.parseInt("00:04".substring(3)));
+
                     }
+
                 }
-            }, 1000);
+            }
+        }, 1000);
 
 
 
-        }
+    }
 
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     public void onMapReady(GoogleMap googleMap) {
         Toast.makeText(this, "Map is ready", Toast.LENGTH_SHORT).show();
-            map = googleMap;
-            checkGPS();
-            init();
+        map = googleMap;
+        checkGPS();
+        init();
 
     }
 
@@ -640,7 +661,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     //database queries
-   private static class InsertPlace extends AsyncTask<Void, Void, Boolean> {
+    private static class InsertPlace extends AsyncTask<Void, Void, Boolean> {
 
         private Context context;
         private PlaceEntity placeEntity;
@@ -682,7 +703,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 51){
             if (resultCode ==RESULT_OK){
@@ -693,20 +714,42 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         }
 
-        if (requestCode == AUTOCOMPLETE_REQUEST_CODE) {
+        if (requestCode == AUTOCOMPLETE_REQUEST_CODE && data != null) {
             if (resultCode == RESULT_OK) {
                 Place place = Autocomplete.getPlaceFromIntent(data);
-                Log.i(TAG, "Place: " + place.getName() + ", " + place.getId());
+                Log.i(TAG, "Place: " + place.getName() + ", " + place.getId() + ", "+ place.toString());
+                Toast.makeText(ctx, "Place:"+ place.getName(), Toast.LENGTH_SHORT).show();
+
+                progressBar.setVisibility(View.VISIBLE);
+                sunLayout.setVisibility(View.INVISIBLE);
+                moonLayout.setVisibility(View.INVISIBLE);
+                calculateTimeAndUpdateUi(place.getLatLng(),dt);
+                moveCamera(place.getLatLng(), DEFAULT_ZOOM, place.getName());
+                placeEntity = new PlaceEntity(0,place.getName(), place.getAddress(), place.getLatLng().latitude, place.getLatLng().longitude);
+
+                if (placeDatabase.getPlaceDao().getAll().toString().contains(placeEntity.getName())){
+                    bookmark_place.setImageDrawable(getResources().getDrawable(R.drawable.ic_bookmark_black_24dp));
+                }
+
+
+                searchText.setText(place.getName());
             } else if (resultCode == AutocompleteActivity.RESULT_ERROR) {
                 // TODO: Handle the error.
                 Status status = Autocomplete.getStatusFromIntent(data);
-                Toast.makeText(ctx, "here", Toast.LENGTH_SHORT).show();
-                Toast.makeText(ctx, status.getStatusMessage(), Toast.LENGTH_SHORT).show();
                 Log.i(TAG, status.getStatusMessage());
             } else if (resultCode == RESULT_CANCELED) {
                 // The user canceled the operation.
             }
         }
+    }
+
+    public static void startAlarmBroadcastReceiver(Context context, long delay) {
+        Intent _intent = new Intent(context, GoldenReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, _intent, 0);
+        AlarmManager alarmManager = (AlarmManager)context.getSystemService(Context.ALARM_SERVICE);
+        // Remove any previous pending intent.
+        alarmManager.cancel(pendingIntent);
+        alarmManager.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + delay, pendingIntent);
     }
 
     private void initializeMap(){
@@ -745,8 +788,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         if (ContextCompat.checkSelfPermission(this.getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED){
             if (ContextCompat.checkSelfPermission(this.getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED){
-                    mLocationPermissionsGranted = true;
-                    initializeMap();
+                mLocationPermissionsGranted = true;
+                initializeMap();
             }
             else {
                 ActivityCompat.requestPermissions(this, permissions, LOCATION_PERMISSION_CODE);
@@ -812,6 +855,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        notificationSet = true;
         //searchText.removeTextChangedListener(new MyTextWatcher(searchText));
     }
 }
